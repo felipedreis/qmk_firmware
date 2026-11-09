@@ -31,5 +31,8 @@
 // Keep layer / default-layer state in sync between halves (needed for the display on the slave half)
 #define SPLIT_LAYER_STATE_ENABLE
 
-// Circular scroll: wheel clicks per full turn of the finger. QMK default is 18; lower = slower scrolling.
-#define SCROLL_CLICKS_PER_TURN 9
+// Circular scroll tuning (QMK defaults: 18 clicks per turn, 33% ring, 16 px trigger).
+// More clicks per turn = faster scrolling for the same finger movement.
+#define SCROLL_CLICKS_PER_TURN 36
+#define SCROLL_RING_PCT        40 // width of the scroll ring at the pad edge, % of the radius
+#define SCROLL_TRIGGER_PX      8  // finger travel along the edge before scrolling starts

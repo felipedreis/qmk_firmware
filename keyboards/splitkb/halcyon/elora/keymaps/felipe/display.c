@@ -23,7 +23,7 @@ static void draw_centered(const char *text, painter_font_handle_t font, uint16_t
 void keyboard_post_init_user(void) {
     // Circular scroll tuning (runs on both halves; only the half with the trackpad uses it).
     // args: outer ring %, trigger px, trigger angle (pi = 32768; 9102 = 50 deg), wheel clicks per full turn, left-handed
-    cirque_pinnacle_configure_circular_scroll(33, 16, 9102, SCROLL_CLICKS_PER_TURN, false);
+    cirque_pinnacle_configure_circular_scroll(SCROLL_RING_PCT, SCROLL_TRIGGER_PX, 9102, SCROLL_CLICKS_PER_TURN, false);
 
     if (!is_keyboard_left()) return; // display is on the left half
 
