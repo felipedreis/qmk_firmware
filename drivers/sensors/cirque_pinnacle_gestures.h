@@ -34,13 +34,44 @@ typedef struct {
 #        define CIRQUE_PINNACLE_TOUCH_DEBOUNCE (CIRQUE_PINNACLE_TAPPING_TERM * 8)
 #    endif
 
+/* Tap-and-drag: touching down again within this many ms of a tap holds the left button while the finger is down.
+ * A quick second tap therefore becomes a double click, and touch-and-slide becomes a drag. */
+#    ifndef CIRQUE_PINNACLE_DRAG_WINDOW
+#        define CIRQUE_PINNACLE_DRAG_WINDOW 250
+#    endif
+/* Long press: finger held (nearly) still for this many ms sends a right click. 0 disables it. */
+#    ifndef CIRQUE_PINNACLE_LONGPRESS_TERM
+#        define CIRQUE_PINNACLE_LONGPRESS_TERM 500
+#    endif
+/* Max finger travel (in scaled trackpad units, 0..scale) for a touch to still count as a tap / long press. */
+#    ifndef CIRQUE_PINNACLE_TAP_MOVE_LIMIT
+#        define CIRQUE_PINNACLE_TAP_MOVE_LIMIT 50
+#    endif
+
+typedef enum {
+    TAP_IDLE,       /* no touch */
+    TAP_TOUCH,      /* finger down, could still become a tap or a long press */
+    TAP_MOVED,      /* finger moved too far: plain cursor movement */
+    TAP_LONG_FIRED, /* long press already sent a right click */
+    TAP_DRAG,       /* second touch after a tap: left button held */
+} trackpad_tap_state_t;
+
 typedef struct {
-    uint16_t timer;
-    bool     touchDown;
+    trackpad_tap_state_t state;
+    uint16_t             down_timer;    /* when the current touch began */
+    uint16_t             release_timer; /* when the last tap ended */
+    uint16_t             start_x;
+    uint16_t             start_y;
+    uint8_t              rclick_reports; /* remaining reports to keep the right button pressed */
+    bool                 touchDown;
+    bool                 recent_tap;     /* a tap just ended; a quick touch now starts a drag */
 } trackpad_tap_context_t;
 
 /* Enable/disable tap gesture */
 void cirque_pinnacle_enable_tap(bool enable);
+
+/* True while a tap-and-drag is holding the left button (the driver must not release it between reports) */
+bool cirque_pinnacle_drag_active(void);
 #endif
 
 #ifdef CIRQUE_PINNACLE_CIRCULAR_SCROLL_ENABLE
