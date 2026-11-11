@@ -32,17 +32,55 @@ static cirque_pinnacle_features_t features = {.tap_enable = true, .circular_scro
 static trackpad_tap_context_t tap;
 
 static report_mouse_t trackpad_tap(report_mouse_t mouse_report, pinnacle_data_t touchData) {
-    if (touchData.touchDown != tap.touchDown) {
-        tap.touchDown = touchData.touchDown;
-        if (!touchData.zValue) {
-            if (timer_elapsed(tap.timer) < CIRQUE_PINNACLE_TAPPING_TERM && tap.timer != 0) {
-                mouse_report.buttons = pointing_device_handle_buttons(mouse_report.buttons, true, POINTING_DEVICE_BUTTON1);
-            }
-        }
-        tap.timer = timer_read();
+    bool down = touchData.touchDown;
+
+    /* Finish a right-click pulse started by a long press */
+    if (tap.rclick_reports && --tap.rclick_reports == 0) {
+        mouse_report.buttons = pointing_device_handle_buttons(mouse_report.buttons, false, POINTING_DEVICE_BUTTON2);
     }
-    if (timer_elapsed(tap.timer) > (CIRQUE_PINNACLE_TOUCH_DEBOUNCE)) {
-        tap.timer = 0;
+
+    if (down && !tap.touchDown) {
+        /* Touch started. A quick re-touch after a tap becomes a drag (or the second click of a double click). */
+        tap.touchDown  = true;
+        tap.down_timer = timer_read();
+        tap.start_x    = touchData.xValue;
+        tap.start_y    = touchData.yValue;
+        if (tap.recent_tap && timer_elapsed(tap.release_timer) < CIRQUE_PINNACLE_DRAG_WINDOW) {
+            tap.state = TAP_DRAG;
+        } else {
+            tap.state = TAP_TOUCH;
+        }
+        tap.recent_tap = false;
+    } else if (!down && tap.touchDown) {
+        /* Touch ended. A short, nearly motionless touch is a tap: click now. */
+        tap.touchDown = false;
+        if (tap.state == TAP_TOUCH && timer_elapsed(tap.down_timer) < CIRQUE_PINNACLE_TAPPING_TERM) {
+            mouse_report.buttons = pointing_device_handle_buttons(mouse_report.buttons, true, POINTING_DEVICE_BUTTON1);
+            tap.release_timer    = timer_read();
+            tap.recent_tap       = true;
+        }
+        tap.state = TAP_IDLE;
+    } else if (down && tap.state == TAP_TOUCH) {
+        int32_t dx = (int32_t)touchData.xValue - tap.start_x;
+        int32_t dy = (int32_t)touchData.yValue - tap.start_y;
+        if (dx * dx + dy * dy > (int32_t)CIRQUE_PINNACLE_TAP_MOVE_LIMIT * CIRQUE_PINNACLE_TAP_MOVE_LIMIT) {
+            tap.state = TAP_MOVED;
+        } else if (CIRQUE_PINNACLE_LONGPRESS_TERM && timer_elapsed(tap.down_timer) >= CIRQUE_PINNACLE_LONGPRESS_TERM) {
+            /* Held still: right click */
+            mouse_report.buttons = pointing_device_handle_buttons(mouse_report.buttons, true, POINTING_DEVICE_BUTTON2);
+            tap.rclick_reports   = 3;
+            tap.state            = TAP_LONG_FIRED;
+        }
+    }
+
+    /* Hold the left button for the whole second touch (drag / double click) */
+    if (tap.state == TAP_DRAG && tap.touchDown) {
+        mouse_report.buttons = pointing_device_handle_buttons(mouse_report.buttons, true, POINTING_DEVICE_BUTTON1);
+    }
+
+    /* A stale tap expires */
+    if (tap.recent_tap && timer_elapsed(tap.release_timer) >= CIRQUE_PINNACLE_DRAG_WINDOW) {
+        tap.recent_tap = false;
     }
 
     return mouse_report;
@@ -50,6 +88,10 @@ static report_mouse_t trackpad_tap(report_mouse_t mouse_report, pinnacle_data_t 
 
 void cirque_pinnacle_enable_tap(bool enable) {
     features.tap_enable = enable;
+}
+
+bool cirque_pinnacle_drag_active(void) {
+    return tap.state == TAP_DRAG && tap.touchDown;
 }
 #endif
 
